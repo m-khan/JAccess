@@ -73,7 +73,7 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	protected Void doInBackground() throws Exception {
 		
 		DP.print("Starting Broadcast");
-		int frameCount = Integer.MAX_VALUE - 5;
+		int frameCount = 0;
 		
 		while(!this.isCancelled())
 		{
@@ -81,9 +81,7 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 			BufferedImage screencap = rob.createScreenCapture(screenSize);
 			ByteBuffer toSend = encodeImage(screencap);
 			DP.print("Sending frame " + frameCount + ": " + toSend.remaining());
-			
 			if(sendFrame(toSend, frameCount++)) DP.print("Frame sent succesfully");
-			
 		}
 		
 		return null;
@@ -96,10 +94,15 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	}
 	
 	
-	public boolean sendFrame(ByteBuffer toSend, int frameID)
+	public boolean sendFrame(ByteBuffer toSend, int frameID) throws Exception
 	{
 		//Write frame ID into the packet buffer
 		DataUtils.intToBytes(frameID, packetBuff, DataUtils.FRAME_ID);
+
+		//Write totalPackets into the packet buffer
+		short totalPackets = (short) (toSend.remaining() / (DataUtils.PACKET_SIZE - DataUtils.DATA_IND));
+		totalPackets += (toSend.remaining() % (DataUtils.PACKET_SIZE - DataUtils.DATA_IND)) > 0 ? 1 : 0;
+		DataUtils.shortToBytes(totalPackets, packetBuff, DataUtils.PACKET_COUNT);
 		
 		//Start packet loop - send packets till the bytebuffer is empty
 		short packetCount = 0;
@@ -110,22 +113,16 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 			//Write from Frame Buffer to Packet Buffer
 			if(DataUtils.PACKET_SIZE - DataUtils.DATA_IND < toSend.remaining())
 			{
-				DataUtils.shortToBytes((short) (DataUtils.PACKET_SIZE - 8), packetBuff, DataUtils.DATA_SIZE);
-				toSend.get(packetBuff, DataUtils.DATA_IND, DataUtils.PACKET_SIZE - 8);
+				DataUtils.shortToBytes((short) (DataUtils.PACKET_SIZE - DataUtils.DATA_IND), packetBuff, DataUtils.DATA_SIZE);
+				toSend.get(packetBuff, DataUtils.DATA_IND, DataUtils.PACKET_SIZE - DataUtils.DATA_IND);
 			}else{
-				//last packet
+				//last packet 
 				DataUtils.shortToBytes((short) (toSend.remaining()), packetBuff, DataUtils.DATA_SIZE);
 				toSend.get(packetBuff, DataUtils.DATA_IND, toSend.remaining());
 			}
 			
 			DatagramPacket packet = new DatagramPacket(packetBuff, DataUtils.PACKET_SIZE, address, port);
-			try {
-				socket.send(packet);
-				//DP.print("Packet sent: " + packet.getLength());
-			} catch (IOException e) {
-				e.printStackTrace();
-				return false;
-			}
+			socket.send(packet);
 			
 		}
 		
@@ -184,9 +181,13 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	    return new Picture(bi.getWidth(), bi.getHeight(), pix, ColorSpace.YUV420);
 	}
 	
+	
+	//Simple test main, send target address as parameter
 	public static void main(String[] args)
 	{
-		SwingWorker vb = new VideoBroadcaster(new Rectangle(1920, 1080), "127.0.0.1", DataUtils.VIDEO_PORT);
+		String address = args.length > 0 ? args[0] : "127.0.0.1";
+		
+		SwingWorker vb = new VideoBroadcaster(new Rectangle(1920, 1080), address, DataUtils.VIDEO_PORT);
 		vb.execute();
 		
 		JFrame frame = new JFrame();

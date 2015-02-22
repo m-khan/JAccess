@@ -4,9 +4,10 @@ public class DataUtils {
 
 	public static final int PACKET_SIZE = 1472;
 	public static final int FRAME_ID = 0;
-	public static final int PACKET_ID = 4;
-	public static final int DATA_SIZE = 6;
-	public static final int DATA_IND = 8;
+	public static final int PACKET_COUNT = 4;
+	public static final int PACKET_ID = 6;
+	public static final int DATA_SIZE = 8;
+	public static final int DATA_IND = 10;
 	public static final int VIDEO_PORT = 9527;
 	
 	public static byte[] intToBytes(int x, byte[] bytes, int startIndex) {
