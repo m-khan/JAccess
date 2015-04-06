@@ -11,6 +11,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import javax.swing.JFrame;
@@ -18,6 +19,7 @@ import javax.swing.JLabel;
 import javax.swing.SwingWorker;
 
 import org.jcodec.codecs.h264.H264Encoder;
+import org.jcodec.codecs.h264.H264Utils;
 import org.jcodec.codecs.h264.encode.ConstantRateControl;
 import org.jcodec.common.model.ColorSpace;
 import org.jcodec.common.model.Picture;
@@ -98,28 +100,23 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	{
 		//Write frame ID into the packet buffer
 		DataUtils.intToBytes(frameID, packetBuff, DataUtils.FRAME_ID);
-
+		List<ByteBuffer> nalUnits = H264Utils.splitFrame(toSend);
+		
+		
 		//Write totalPackets into the packet buffer
-		short totalPackets = (short) (toSend.remaining() / (DataUtils.PACKET_SIZE - DataUtils.DATA_IND));
-		totalPackets += (toSend.remaining() % (DataUtils.PACKET_SIZE - DataUtils.DATA_IND)) > 0 ? 1 : 0;
+		short totalPackets = (short) nalUnits.size();
 		DataUtils.shortToBytes(totalPackets, packetBuff, DataUtils.PACKET_COUNT);
 		
 		//Start packet loop - send packets till the bytebuffer is empty
-		short packetCount = 0;
-		while(toSend.remaining() > 0)
+		short packetIndex = 0;
+		for(ByteBuffer b : nalUnits)
 		{
 			//Write packet number into the buffer
-			DataUtils.shortToBytes(packetCount++, packetBuff, DataUtils.PACKET_ID);
+			DataUtils.shortToBytes(packetIndex++, packetBuff, DataUtils.PACKET_ID);
+			
 			//Write from Frame Buffer to Packet Buffer
-			if(DataUtils.PACKET_SIZE - DataUtils.DATA_IND < toSend.remaining())
-			{
-				DataUtils.shortToBytes((short) (DataUtils.PACKET_SIZE - DataUtils.DATA_IND), packetBuff, DataUtils.DATA_SIZE);
-				toSend.get(packetBuff, DataUtils.DATA_IND, DataUtils.PACKET_SIZE - DataUtils.DATA_IND);
-			}else{
-				//last packet 
-				DataUtils.shortToBytes((short) (toSend.remaining()), packetBuff, DataUtils.DATA_SIZE);
-				toSend.get(packetBuff, DataUtils.DATA_IND, toSend.remaining());
-			}
+			DataUtils.shortToBytes((short) (DataUtils.PACKET_SIZE - DataUtils.DATA_IND), packetBuff, DataUtils.DATA_SIZE);
+			toSend.get(packetBuff, DataUtils.DATA_IND, DataUtils.PACKET_SIZE - DataUtils.DATA_IND);
 			
 			DatagramPacket packet = new DatagramPacket(packetBuff, DataUtils.PACKET_SIZE, address, port);
 			socket.send(packet);
@@ -132,21 +129,7 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	
 	public ByteBuffer encodeImage(BufferedImage image)
 	{
-		// I'm going to keep both of these methods around till I find out which one works better.
-//		if(toEncode == null || toEncode.getWidth() != image.getWidth() || toEncode.getHeight() != image.getHeight())
-//		{
-//			toEncode = Picture.create(image.getWidth(), image.getHeight(), ColorSpace.YUV420);
-//		}
-//		
-//		DP.print("Transforming image...");
-//		
-//		for(int i = 0; i < 3; i++)
-//		{
-//			Arrays.fill(toEncode.getData()[i], 0);
-//		}
-//		transform.transform(AWTUtil.fromBufferedImage(image), toEncode);
-
-		toEncode = makeFrame(image);
+		toEncode = biToYuv420(image);
 		
 		_out.clear();
 		ByteBuffer toReturn = encoder.encodeFrame(_out, toEncode);
@@ -154,7 +137,7 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		return toReturn;
 	}
 	
-	private Picture makeFrame(BufferedImage bi)
+	private Picture biToYuv420(BufferedImage bi)
 	{   
 	    DataBuffer imgdata = bi.getRaster().getDataBuffer();
 	    int[] ypix = new int[imgdata.getSize()];
