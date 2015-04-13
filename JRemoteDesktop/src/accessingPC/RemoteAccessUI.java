@@ -92,9 +92,12 @@ public class RemoteAccessUI extends JPanel {
 
 	//Simple test main
 	public static void main(String[] args) {
+		
+		String address = args.length > 0 ? args[0] : "127.0.0.1";
+
 		JFrame frame = new JFrame("TEST");
 		Rectangle r = new Rectangle(1920, 1080);
-		InputBroadcaster in = new InputBroadcaster("127.0.0.1", DataUtils.INPUT_PORT);
+		InputBroadcaster in = new InputBroadcaster(address, DataUtils.INPUT_PORT);
 		
 		frame.add(new RemoteAccessUI(r, in));
 		frame.setBounds(r);

@@ -70,7 +70,7 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	@Override
 	protected Void doInBackground() throws Exception {
 		
-		DP.print("Starting Broadcast");
+		DP.print("Starting Broadcast to " + address);
 		int width = Chunk.WIDTH;
 		int height = Chunk.HEIGHT;
 		
@@ -78,8 +78,6 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		{
 			BufferedImage screencap = rob.createScreenCapture(screenSize);
 			int imageType = DataUtils.IMAGE_TYPE; //screencap.getType();
-			
-			ArrayList<Chunk> chunks = new ArrayList<Chunk>();
 			
 			for(int x = 0; x < screenSize.width + width; x += width)
 			{
@@ -148,7 +146,7 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		frame.setVisible(true);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		
-		new InputReceiver("127.0.0.1", DataUtils.INPUT_PORT);
+		new InputReceiver(address, DataUtils.INPUT_PORT);
 		
 		try {
 			vb.get();
