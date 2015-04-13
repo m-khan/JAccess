@@ -1,45 +1,42 @@
 package remotePC;
 
+import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Robot;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferByte;
+import java.awt.image.WritableRaster;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 
+import javax.imageio.ImageIO;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.SwingWorker;
 
-import org.jcodec.codecs.h264.H264Encoder;
-import org.jcodec.codecs.h264.H264Utils;
-import org.jcodec.codecs.h264.encode.ConstantRateControl;
-import org.jcodec.common.model.ColorSpace;
-import org.jcodec.common.model.Picture;
-import org.jcodec.scale.RgbToYuv420;
+import org.apache.commons.io.output.ByteArrayOutputStream;
 
 import tests.DP;
+import utils.Chunk;
 import utils.DataUtils;
 
 public class VideoBroadcaster extends SwingWorker<Void, Void> {
 
 	private Rectangle screenSize;
-	private Picture toEncode;
-	private RgbToYuv420 transform;
-	private H264Encoder encoder;
 	private ByteBuffer _out;
 	private InetAddress address;
 	private int port;
 	private DatagramSocket socket;
 	private byte[] packetBuff;
 
+	
 	public VideoBroadcaster(Rectangle screenSize, String hostName, int port) {
 		super();
 		this.screenSize = screenSize;
@@ -52,11 +49,8 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		}
 		
 		this.port = port;
-		toEncode = null;
-		transform = new RgbToYuv420(0,0);
-		encoder = new H264Encoder(new ConstantRateControl(512)); //TODO: look into RateControl
 		_out = ByteBuffer.allocate(screenSize.width * screenSize.height * 6);
-		packetBuff = new byte[DataUtils.PACKET_SIZE];
+		packetBuff = new byte[65535];
 		
 		try {
 			socket = new DatagramSocket();
@@ -76,16 +70,37 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		
 		DP.print("Starting Broadcast");
 		int frameCount = 0;
+		int width = Chunk.WIDTH;
+		int height = Chunk.HEIGHT;
 		
 		while(!this.isCancelled())
 		{
 			Robot rob = new Robot();
 			BufferedImage screencap = rob.createScreenCapture(screenSize);
-			ByteBuffer toSend = encodeImage(screencap);
-			DP.print("Sending frame " + frameCount + ": " + toSend.remaining());
-			if(sendFrame(toSend, frameCount++)) DP.print("Frame sent succesfully");
+			int imageType = DataUtils.IMAGE_TYPE; //screencap.getType();
+			
+			ArrayList<Chunk> chunks = new ArrayList<Chunk>();
+			
+			for(int x = 0; x < screenSize.width + width; x += width)
+			{
+				for(int y = 0; y < screenSize.height + height; y += height)
+				{
+					BufferedImage img = new BufferedImage(width, height, imageType);
+					Graphics2D g2 = img.createGraphics();
+					g2.drawImage(screencap, 0, 0, width, height, x, y, x+width, y+height, null);
+					g2.dispose();
+					chunks.add(new Chunk(img, x, y));
+				}
+			}
+			
+			//DP.print("Screen sent: " + chunks.size() + " parts");
+			
+			for(Chunk c : chunks)
+			{
+				ByteBuffer toSend = DataUtils.encode2(c.img);
+				sendPacket(toSend, c.x, c.y);
+			}
 		}
-		
 		return null;
 	}
 	
@@ -96,72 +111,28 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	}
 	
 	
-	public boolean sendFrame(ByteBuffer toSend, int frameID) throws Exception
+	public boolean sendPacket(ByteBuffer toSend, int frameX, int frameY) throws Exception
 	{
-		//Write frame ID into the packet buffer
-		DataUtils.intToBytes(frameID, packetBuff, DataUtils.FRAME_ID);
-		List<ByteBuffer> nalUnits = H264Utils.splitFrame(toSend);
+		int packetSize = toSend.remaining();
 		
-		
-		//Write totalPackets into the packet buffer
-		short totalPackets = (short) nalUnits.size();
-		DataUtils.shortToBytes(totalPackets, packetBuff, DataUtils.PACKET_COUNT);
-		
-		//Start packet loop - send packets till the bytebuffer is empty
-		short packetIndex = 0;
-		for(ByteBuffer b : nalUnits)
+		if(toSend.remaining() > 32767) //max value of short
 		{
-			//Write packet number into the buffer
-			DataUtils.shortToBytes(packetIndex++, packetBuff, DataUtils.PACKET_ID);
-			
-			//Write from Frame Buffer to Packet Buffer
-			DataUtils.shortToBytes((short) (DataUtils.PACKET_SIZE - DataUtils.DATA_IND), packetBuff, DataUtils.DATA_SIZE);
-			toSend.get(packetBuff, DataUtils.DATA_IND, DataUtils.PACKET_SIZE - DataUtils.DATA_IND);
-			
-			DatagramPacket packet = new DatagramPacket(packetBuff, DataUtils.PACKET_SIZE, address, port);
-			socket.send(packet);
-			
-		}
+			DP.print("Packet over 32767 bytes, skipping.  Size: " + toSend.remaining());
+			return false;
+		}		
+
+		// Write positional data to packetBuffer
+		DataUtils.intToBytes(frameX, packetBuff, DataUtils.FRAME_X);
+		DataUtils.intToBytes(frameY, packetBuff, DataUtils.FRAME_Y);
 		
+		// Write from Frame Buffer to Packet Buffer
+		DataUtils.shortToBytes((short) (toSend.remaining()), packetBuff, DataUtils.DATA_SIZE);
+		toSend.get(packetBuff, DataUtils.DATA_IND, packetSize);
+		
+		DatagramPacket packet = new DatagramPacket(packetBuff, packetSize, address, port);
+		socket.send(packet);
+
 		return true;
-	}
-	
-	
-	public ByteBuffer encodeImage(BufferedImage image)
-	{
-		toEncode = biToYuv420(image);
-		
-		_out.clear();
-		ByteBuffer toReturn = encoder.encodeFrame(_out, toEncode);
-
-		return toReturn;
-	}
-	
-	private Picture biToYuv420(BufferedImage bi)
-	{   
-	    DataBuffer imgdata = bi.getRaster().getDataBuffer();
-	    int[] ypix = new int[imgdata.getSize()];
-	    int[] upix = new int[ imgdata.getSize() >> 2 ];
-	    int[] vpix = new int[ imgdata.getSize() >> 2 ];
-	    int ipx = 0, uvoff = 0;
-
-	    for (int h = 0; h < bi.getHeight(); h++) {
-	        for (int w = 0; w < bi.getWidth();  w++) {
-	            int elem = imgdata.getElem(ipx);
-	            int r = 0x0ff & (elem >>> 16);
-	            int g = 0x0ff & (elem >>> 8);
-	            int b = 0x0ff & elem;
-	            ypix[ipx] = ((66 * r + 129 * g + 25 * b) >> 8) + 16;
-	            if ((0 != w % 2) && (0 != h % 2)) {
-	                upix[uvoff] = (( -38 * r + -74 * g + 112 * b) >> 8) + 128;
-	                vpix[uvoff] = (( 112 * r + -94 * g + -18 * b) >> 8) + 128;
-	                uvoff++;
-	            }
-	            ipx++;
-	        }
-	    }
-	    int[][] pix = { ypix, upix, vpix, null };
-	    return new Picture(bi.getWidth(), bi.getHeight(), pix, ColorSpace.YUV420);
 	}
 	
 	
@@ -187,5 +158,6 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 			System.exit(1);
 		}
 	}
+	
 
 }
