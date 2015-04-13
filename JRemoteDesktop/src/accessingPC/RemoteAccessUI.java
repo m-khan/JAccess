@@ -2,6 +2,7 @@ package accessingPC;
 
 import java.awt.Graphics;
 import java.awt.Rectangle;
+import java.awt.event.MouseListener;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
@@ -23,14 +24,16 @@ public class RemoteAccessUI extends JPanel {
 	private LinkedList<Chunk> newChunks = new LinkedList<Chunk>();
 	private final int UPDATE_COUNT = 1;
 	
-	public RemoteAccessUI(int width, int height)
+	public RemoteAccessUI(int width, int height, MouseListener ml)
 	{
-		this(new Rectangle(width, height));
+		this(new Rectangle(width, height), ml);
 	}
 	
-	public RemoteAccessUI(Rectangle screenSize) {
+	public RemoteAccessUI(Rectangle screenSize, MouseListener ml) {
 		screenWidth = screenSize.width;
 		screenWidth = screenSize.height;
+		
+		this.addMouseListener(ml);
 		
 		try{
 		SwingWorker<BufferedImage, BufferedImage> vr = new VideoReceiver(DataUtils.VIDEO_PORT);
@@ -64,12 +67,6 @@ public class RemoteAccessUI extends JPanel {
 		}
 	}
 	
-	@Override
-	public void update(Graphics g)
-	{
-		//does nothing
-	}
-	
 	public class ReceiverListener implements PropertyChangeListener
 	{
 		private int count = 0;
@@ -97,9 +94,11 @@ public class RemoteAccessUI extends JPanel {
 	public static void main(String[] args) {
 		JFrame frame = new JFrame("TEST");
 		Rectangle r = new Rectangle(1920, 1080);
+		InputBroadcaster in = new InputBroadcaster("127.0.0.1", DataUtils.INPUT_PORT);
 		
-		frame.add(new RemoteAccessUI(r));
+		frame.add(new RemoteAccessUI(r, in));
 		frame.setBounds(r);
+		frame.addKeyListener(in);
 		frame.setVisible(true);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 	}

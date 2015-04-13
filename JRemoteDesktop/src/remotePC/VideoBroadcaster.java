@@ -1,5 +1,6 @@
 package remotePC;
 
+import java.awt.AWTException;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.Robot;
@@ -29,6 +30,7 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	private int port;
 	private DatagramSocket socket;
 	private byte[] packetBuff;
+	Robot rob;
 
 	
 	public VideoBroadcaster(Rectangle screenSize, String hostName, int port) {
@@ -40,6 +42,13 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		} catch (UnknownHostException e1) {
 			e1.printStackTrace();
 			DP.print("Hostname Unknown");
+		}
+		
+		try {
+			rob  = new Robot();
+		} catch (AWTException e1) {
+			e1.printStackTrace();
+			throw new RuntimeException("Failed to initialize robot");
 		}
 		
 		this.port = port;
@@ -67,7 +76,6 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		
 		while(!this.isCancelled())
 		{
-			Robot rob = new Robot();
 			BufferedImage screencap = rob.createScreenCapture(screenSize);
 			int imageType = DataUtils.IMAGE_TYPE; //screencap.getType();
 			
@@ -139,6 +147,8 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		frame.pack();
 		frame.setVisible(true);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		
+		new InputReceiver("127.0.0.1", DataUtils.INPUT_PORT);
 		
 		try {
 			vb.get();

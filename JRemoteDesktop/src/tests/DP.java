@@ -8,4 +8,9 @@ public class DP {
 		System.out.println(s);
 	}
 	
+	public static void err(Exception e)
+	{
+		e.printStackTrace();
+	}
+	
 }

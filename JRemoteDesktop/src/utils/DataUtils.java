@@ -19,6 +19,7 @@ public class DataUtils {
 	public static final int DATA_SIZE = 8;
 	public static final int DATA_IND = 10;
 	public static final int VIDEO_PORT = 9527;
+	public static final int INPUT_PORT = 9528;
 	public static final int IMAGE_TYPE = BufferedImage.TYPE_BYTE_INDEXED;
 	
 	public static byte[] intToBytes(int x, byte[] bytes, int startIndex) {
