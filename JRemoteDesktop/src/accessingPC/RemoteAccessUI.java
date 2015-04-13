@@ -21,7 +21,7 @@ public class RemoteAccessUI extends JPanel {
 	private int screenWidth;
 	private int screenHeight;
 	private LinkedList<Chunk> newChunks = new LinkedList<Chunk>();
-	private final int UPDATE_COUNT = 300;
+	private final int UPDATE_COUNT = 1;
 	
 	public RemoteAccessUI(int width, int height)
 	{

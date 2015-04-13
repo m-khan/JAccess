@@ -14,10 +14,8 @@ import org.apache.commons.io.output.ByteArrayOutputStream;
 
 public class DataUtils {
 
-	//public static final int PACKET_SIZE = 1472;
 	public static final int FRAME_X = 0;
 	public static final int FRAME_Y = 4;
-	//public static final int PACKET_ID = 6;
 	public static final int DATA_SIZE = 8;
 	public static final int DATA_IND = 10;
 	public static final int VIDEO_PORT = 9527;
