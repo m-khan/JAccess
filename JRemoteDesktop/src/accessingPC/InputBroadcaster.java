@@ -5,6 +5,8 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.Queue;
@@ -13,13 +15,15 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import tests.DP;
 import utils.Input;
 
-public class InputBroadcaster implements KeyListener, MouseListener, MouseMotionListener {
+public class InputBroadcaster implements KeyListener, MouseListener, MouseMotionListener, MouseWheelListener {
 
 	Queue<Input> queue = new ConcurrentLinkedQueue<Input>();
 	
 	public final String address;
 	public final int port;
 	Thread thread;
+	public final int retryMax = 10;
+	int retryCount = 0;
 	
 	public InputBroadcaster(String address, int port) {
 		super();
@@ -44,8 +48,14 @@ public class InputBroadcaster implements KeyListener, MouseListener, MouseMotion
 			{
 				try {
 					sendInputs();
+					retryCount = 0;
 				} catch (Exception e) {
-					DP.print("No Input Server");
+					if(retryCount++ == retryMax)
+					{
+						DP.popup("Connection Failed after " + retryMax + " attempts.");
+						System.exit(1);
+					}
+					//DP.print("No Input Server... " + retryCount);
 					try {
 						Thread.sleep(1000);
 					} catch (InterruptedException e1) {
@@ -103,12 +113,12 @@ public class InputBroadcaster implements KeyListener, MouseListener, MouseMotion
 	}
 	@Override
 	public void mouseDragged(MouseEvent e) {
-		
+		queueSend(new Input(e, Input.MOUSE_MOVED));
 	}
 
 	@Override
 	public void mouseMoved(MouseEvent e) {
-		
+		queueSend(new Input(e, Input.MOUSE_MOVED));
 	}
 
 	@Override
@@ -122,6 +132,11 @@ public class InputBroadcaster implements KeyListener, MouseListener, MouseMotion
 	}
 	@Override
 	public void keyTyped(KeyEvent e) {
+	}
+
+	@Override
+	public void mouseWheelMoved(MouseWheelEvent e) {
+		queueSend(new Input(e, Input.MOUSE_WHEEL));
 	}
 
 

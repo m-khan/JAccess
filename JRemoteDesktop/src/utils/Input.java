@@ -3,6 +3,8 @@ package utils;
 import java.awt.event.InputEvent;
 import java.io.Serializable;
 
+import tests.DP;
+
 public class Input implements Serializable{
 	
 	private static final long serialVersionUID = -6640387211014262490L;
@@ -11,13 +13,19 @@ public class Input implements Serializable{
 	public static final int KEY_PRESSED = 2;
 	public static final int KEY_RELEASED = 3;
 	public static final int MOUSE_MOVED = 4;
-	
+	public static final int MOUSE_WHEEL = 5;
 	public final InputEvent event;
 	public final int type;
 	
 	public Input(InputEvent e, int type) {
 		this.event = e;
 		this.type = type;
+		
+	}
+	
+	public String toString()
+	{
+		return "EVENT: " + type;
 	}
 	
 }

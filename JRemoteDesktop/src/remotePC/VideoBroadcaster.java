@@ -12,11 +12,15 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.SwingWorker;
 
 import tests.DP;
@@ -31,7 +35,14 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	private DatagramSocket socket;
 	private byte[] packetBuff;
 	Robot rob;
+	
+	Map<Integer, Chunk> cache = new ConcurrentHashMap<Integer, Chunk>();
 
+	int seedFrameCount = 0;
+	int seedFreq = 10;
+	
+	final int cores = Runtime.getRuntime().availableProcessors();
+	ExecutorService pool = Executors.newFixedThreadPool(cores);
 	
 	public VideoBroadcaster(Rectangle screenSize, String hostName, int port) {
 		super();
@@ -41,7 +52,8 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 			address = InetAddress.getByName(hostName);
 		} catch (UnknownHostException e1) {
 			e1.printStackTrace();
-			DP.print("Hostname Unknown");
+			DP.popup("Hostname Unknown: " + hostName);
+			System.exit(1);
 		}
 		
 		try {
@@ -58,7 +70,8 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 			socket = new DatagramSocket();
 		} catch (IOException e) {
 			e.printStackTrace();
-			throw new RuntimeException("Failed to setup broadcaster");
+			DP.popup("Failed to setup broadcaster");
+			System.exit(1);
 		}
 	}
 	
@@ -73,15 +86,16 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		DP.print("Starting Broadcast to " + address);
 		int width = Chunk.WIDTH;
 		int height = Chunk.HEIGHT;
+		double lastTime = System.nanoTime();
 		
 		while(!this.isCancelled())
 		{
 			BufferedImage screencap = rob.createScreenCapture(screenSize);
 			int imageType = DataUtils.IMAGE_TYPE; //screencap.getType();
 			
-			for(int x = 0; x < screenSize.width + width; x += width)
+			for(short x = 0; x < screenSize.width + width; x += width)
 			{
-				for(int y = 0; y < screenSize.height + height; y += height)
+				for(short y = 0; y < screenSize.height + height; y += height)
 				{
 					BufferedImage img = new BufferedImage(width, height, imageType);
 					Graphics2D g2 = img.createGraphics();
@@ -89,15 +103,67 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 					g2.dispose();
 					
 					Chunk c = new Chunk(img, x, y);
-					ByteBuffer toSend = DataUtils.encode2(c.img);
-					sendPacket(toSend, c.x, c.y);
+					
+					int key = DataUtils.combine(x, y);
+					
+					pool.execute(new SenderThread(key, c));
 				}
+				
 			}
 			
-			//DP.print("Screen sent: " + chunks.size() + " parts");
+			//Frame stuff
+            double fps = 1000000000.0 / (System.nanoTime() - lastTime); //one second(nano) divided by amount of time it takes for one frame to finish
+            lastTime = System.nanoTime();
+            
+            firePropertyChange("fps", null, fps);
 			
+            if(seedFrameCount++ == seedFreq)
+            {
+            	newSeed();
+            }
+            
 		}
 		return null;
+	}
+	
+	public void newSeed()
+	{
+    	cache.clear();
+    	seedFrameCount = 0;
+	}
+	
+	class SenderThread implements Runnable
+	{
+		int key;
+		Chunk c;
+		
+		private SenderThread(int k, Chunk c)
+		{
+			key = k;
+			this.c = c;
+		}
+		
+		@Override
+		public void run() {
+			try {
+				checkAndSend(key, c);
+			} catch (Exception e) {
+				DP.err(e);
+				// Do nothing, this is lossy anyway
+			}
+		}
+	
+		public void checkAndSend(int key, Chunk c) throws Exception
+		{
+			if(!cache.containsKey(key) || !cache.get(key).equals(c))
+			{
+				cache.put(key, c);
+				ByteBuffer toSend = DataUtils.encode2(c.img);
+				sendPacket(toSend, c.x, c.y);
+			}
+	
+		}
+
 	}
 	
 	@Override
@@ -132,16 +198,16 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	}
 	
 	
-	//Simple test main, send target address as parameter
+	//Simple test broadcaster, recommend running the remote client instead.
 	public static void main(String[] args)
 	{
-		String address = args.length > 0 ? args[0] : "127.0.0.1";
+		String address = args.length > 0 ? args[0] : JOptionPane.showInputDialog("Broadcast to IP: ");
 		
 		SwingWorker vb = new VideoBroadcaster(new Rectangle(1920, 1080), address, DataUtils.VIDEO_PORT);
 		vb.execute();
 		
 		JFrame frame = new JFrame();
-		frame.getContentPane().add(new JLabel("Broadcaster"));
+		frame.getContentPane().add(new JLabel("Broadcasting to " + address));
 		frame.pack();
 		frame.setVisible(true);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -153,6 +219,7 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		} catch (InterruptedException | ExecutionException e) {
 			e.printStackTrace();
 			Toolkit.getDefaultToolkit().beep();
+			DP.popup("Fatal error in broadcaster");
 			System.exit(1);
 		}
 	}

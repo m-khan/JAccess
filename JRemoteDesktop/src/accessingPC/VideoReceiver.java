@@ -20,8 +20,6 @@ public class VideoReceiver extends SwingWorker<BufferedImage, BufferedImage> {
 	private DatagramSocket socket;
 	private byte[] packetBuffer;
 	
-	private BufferedImage currentScreen;
-	
 	public VideoReceiver(int port) throws SocketException
 	{
 		super();

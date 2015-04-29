@@ -1,19 +1,24 @@
 package accessingPC;
 
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Rectangle;
 import java.awt.event.MouseListener;
 import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
 import java.net.SocketException;
 import java.util.LinkedList;
 
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SwingWorker;
 
+import tests.DP;
 import utils.Chunk;
 import utils.DataUtils;
 
@@ -32,6 +37,8 @@ public class RemoteAccessUI extends JPanel {
 	public RemoteAccessUI(Rectangle screenSize, MouseListener ml) {
 		screenWidth = screenSize.width;
 		screenWidth = screenSize.height;
+		
+		this.setPreferredSize(new Dimension(screenSize.width, screenSize.height));
 		
 		this.addMouseListener(ml);
 		
@@ -93,15 +100,50 @@ public class RemoteAccessUI extends JPanel {
 	//Simple test main
 	public static void main(String[] args) {
 		
-		String address = args.length > 0 ? args[0] : "127.0.0.1";
+		String address = args.length > 0 ? args[0] : JOptionPane.showInputDialog("Remote IP: ");
+		
+		if(address == null)
+			System.exit(0);
+		
+		String password = DP.askForPassword();
+		
+		if(password == null)
+			password = "";
+		
+		Socket socket;
+		try {
+			socket = new Socket(address, DataUtils.HANDSHAKE_PORT);
+			try{
+				ObjectOutputStream stream = new ObjectOutputStream(socket.getOutputStream());
+				
+				stream.writeObject("connect" + password.hashCode());
+				socket.close();
+	
+			}catch(Exception e){
+				socket.close();
+				throw e;
+			}
+		} catch (Exception e) {
+			DP.popup("Could not connect to remote computer");
+			e.printStackTrace();
+			System.exit(1);
+		}
 
-		JFrame frame = new JFrame("TEST");
+		
+		JFrame frame = new JFrame("Remote Access");
 		Rectangle r = new Rectangle(1920, 1080);
 		InputBroadcaster in = new InputBroadcaster(address, DataUtils.INPUT_PORT);
 		
-		frame.add(new RemoteAccessUI(r, in));
+		JPanel raui = new RemoteAccessUI(r, in);
+		
+		JScrollPane scroll = new JScrollPane(raui, JScrollPane.VERTICAL_SCROLLBAR_ALWAYS, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		scroll.setWheelScrollingEnabled(false);
+		
+		frame.add(scroll);
 		frame.setBounds(r);
 		frame.addKeyListener(in);
+		raui.addMouseMotionListener(in);
+		frame.addMouseWheelListener(in);
 		frame.setVisible(true);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 	}

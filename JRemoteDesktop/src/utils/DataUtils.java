@@ -4,13 +4,13 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.awt.image.WritableRaster;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 import javax.imageio.ImageIO;
 
-import org.apache.commons.io.output.ByteArrayOutputStream;
 
 public class DataUtils {
 
@@ -20,6 +20,7 @@ public class DataUtils {
 	public static final int DATA_IND = 10;
 	public static final int VIDEO_PORT = 9527;
 	public static final int INPUT_PORT = 9528;
+	public static final int HANDSHAKE_PORT = 9529;
 	public static final int IMAGE_TYPE = BufferedImage.TYPE_BYTE_INDEXED;
 	
 	public static byte[] intToBytes(int x, byte[] bytes, int startIndex) {
@@ -81,6 +82,13 @@ public class DataUtils {
 		}
 	}
 	
+	public static byte[] getBytes(BufferedImage bi)
+	{
+		WritableRaster raster = bi.getRaster();
+		DataBufferByte buffer = (DataBufferByte) raster.getDataBuffer();
+		return buffer.getData();
+	}
+	
 	public static ByteBuffer encode2(BufferedImage bi)
 	{
 		WritableRaster raster = bi.getRaster();
@@ -95,4 +103,11 @@ public class DataUtils {
 	    System.arraycopy(pixels, 0, imgData, 0, pixels.length);     
 	    return image;
 	}
+	
+	public static int combine(short A, short B)
+	{
+	    return A<<16 | B;
+	}
+
+	
 }

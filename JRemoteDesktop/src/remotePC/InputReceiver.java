@@ -4,6 +4,7 @@ import java.awt.AWTException;
 import java.awt.Robot;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.io.ObjectInputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -55,7 +56,6 @@ public class InputReceiver {
 					queue.poll();
 					DP.print("Executed: " + e.event);
 				}
-
 			}
 		}
 		
@@ -80,6 +80,12 @@ public class InputReceiver {
 			case Input.KEY_RELEASED:
 				rob.keyRelease(((KeyEvent) e.event).getKeyCode());
 				break;
+			case Input.MOUSE_WHEEL:
+				rob.mouseWheel(((MouseWheelEvent)e.event).getScrollAmount());
+				break;
+			case Input.MOUSE_MOVED:
+				MouseEvent mm = (MouseEvent) e.event;
+				rob.mouseMove(mm.getX(), mm.getY());
 			}
 
 		}
@@ -110,8 +116,8 @@ public class InputReceiver {
 				while(this.isAlive())
 				{
 					Input evt = (Input) stream.readObject();
-//					if(socket.getRemoteSocketAddress().equals(remoteAddress))
-					queue.add(evt);
+					if(socket.getRemoteSocketAddress().equals(remoteAddress))
+						queue.add(evt);
 				}
 				DP.print("Thread stopped, closing connection");
 				socket.close();
