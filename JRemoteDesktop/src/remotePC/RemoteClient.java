@@ -55,16 +55,17 @@ public class RemoteClient {
 	
 	public void listen(int port) throws Exception
 	{
-		ServerSocket server = new ServerSocket(port);
-		Socket socket = server.accept();
-		ObjectInputStream stream = new ObjectInputStream(socket.getInputStream());
-		DP.print("listening");
 		
 		boolean keepAlive = true;
+		ServerSocket server = null;
+		Socket socket = null;
 		
 		try{
 			while(keepAlive)
 			{
+				server = new ServerSocket(port);
+				socket = server.accept();
+				ObjectInputStream stream = new ObjectInputStream(socket.getInputStream());
 				String message = stream.readObject().toString();
 				InetSocketAddress insaddress = (InetSocketAddress) socket.getRemoteSocketAddress();
 				address = insaddress.getHostName();
@@ -77,15 +78,9 @@ public class RemoteClient {
 								"Connection Request", JOptionPane.OK_CANCEL_OPTION);
 						if(answer == JOptionPane.OK_OPTION)
 						{
-							startBroadcast();
-						}
-						else
-						{
 							socket.close();
 							server.close();
-							server = new ServerSocket(port);
-							socket = server.accept();
-							stream = new ObjectInputStream(socket.getInputStream());
+							startBroadcast();
 						}
 					}
 					else
@@ -99,22 +94,19 @@ public class RemoteClient {
 						else
 						{
 							DP.print("Access attempt with incorrect password.");
-							socket.close();
-							server.close();
-							server = new ServerSocket(port);
-							socket = server.accept();
-							stream = new ObjectInputStream(socket.getInputStream());
-
 						}
 					}
 				}
-			}
-			DP.print("Thread stopped, closing connection");
-			socket.close();
-			server.close();
+				DP.print("Thread stopped, closing connection");
+				socket.close();
+				server.close();
+}
 		}catch(Exception e){
-			socket.close();
-			server.close();
+			
+			if(socket!= null)
+				socket.close();
+			if(server != null)
+				server.close();
 			throw e;
 		}
 	}

@@ -6,6 +6,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.io.ObjectInputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Queue;
@@ -111,12 +112,15 @@ public class InputReceiver {
 			ServerSocket server = new ServerSocket(port);
 			Socket socket = server.accept();
 			ObjectInputStream stream = new ObjectInputStream(socket.getInputStream());
-			DP.print("listening");
+			DP.print("Connection established, listening for inputs");
 			try{
 				while(this.isAlive())
 				{
 					Input evt = (Input) stream.readObject();
-					if(socket.getRemoteSocketAddress().equals(remoteAddress))
+					InetSocketAddress insaddress = (InetSocketAddress) socket.getRemoteSocketAddress();
+					String address = insaddress.getHostName();
+
+					if(address.equals(remoteAddress))
 						queue.add(evt);
 				}
 				DP.print("Thread stopped, closing connection");
