@@ -4,8 +4,8 @@ import java.awt.event.InputEvent;
 import java.io.Serializable;
 
 public class Input implements Serializable{
-	
-	private static final long serialVersionUID = -6640387211014262490L;
+
+	private static final long serialVersionUID = -3972763649724452203L;
 	public static final int MOUSE_PRESSED = 0;
 	public static final int MOUSE_RELEASED = 1;
 	public static final int KEY_PRESSED = 2;
@@ -19,11 +19,5 @@ public class Input implements Serializable{
 		this.event = e;
 		this.type = type;
 		
-	}
-	
-	public String toString()
-	{
-		return "EVENT: " + type;
-	}
-	
+	}	
 }
