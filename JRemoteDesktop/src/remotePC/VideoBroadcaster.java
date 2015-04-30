@@ -192,8 +192,11 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		toSend.get(packetBuff, DataUtils.DATA_IND, toSend.remaining());
 		
 		DatagramPacket packet = new DatagramPacket(packetBuff, packetSize, address, port);
-		socket.send(packet);
-
+		
+		synchronized(socket)
+		{
+			socket.send(packet);
+		}
 		return true;
 	}
 	
