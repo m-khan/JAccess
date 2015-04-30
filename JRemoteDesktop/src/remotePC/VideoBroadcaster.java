@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -40,9 +41,6 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 
 	int seedFrameCount = 0;
 	int seedFreq = 10;
-	
-	final int cores = Runtime.getRuntime().availableProcessors();
-	ExecutorService pool = Executors.newFixedThreadPool(cores);
 	
 	public VideoBroadcaster(Rectangle screenSize, String hostName, int port) {
 		super();
@@ -87,29 +85,27 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		int width = Chunk.WIDTH;
 		int height = Chunk.HEIGHT;
 		double lastTime = System.nanoTime();
+		final int cores = Runtime.getRuntime().availableProcessors();
 		
 		while(!this.isCancelled())
 		{
+			
+			ExecutorService pool = Executors.newFixedThreadPool(cores);
+
 			BufferedImage screencap = rob.createScreenCapture(screenSize);
-			int imageType = DataUtils.IMAGE_TYPE; //screencap.getType();
 			
 			for(short x = 0; x < screenSize.width + width; x += width)
 			{
 				for(short y = 0; y < screenSize.height + height; y += height)
 				{
-					BufferedImage img = new BufferedImage(width, height, imageType);
-					Graphics2D g2 = img.createGraphics();
-					g2.drawImage(screencap, 0, 0, width, height, x, y, x+width, y+height, null);
-					g2.dispose();
-					
-					Chunk c = new Chunk(img, x, y);
-					
-					int key = DataUtils.combine(x, y);
-					
-					pool.execute(new SenderThread(key, c));
+					Chunk c = new Chunk(null, x, y);
+					pool.execute(new SenderThread(c, screencap));
 				}
-				
 			}
+			
+			pool.shutdown();
+
+			pool.awaitTermination(1, TimeUnit.SECONDS);
 			
 			//Frame stuff
             double fps = 1000000000.0 / (System.nanoTime() - lastTime); //one second(nano) divided by amount of time it takes for one frame to finish
@@ -134,27 +130,40 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 	
 	class SenderThread implements Runnable
 	{
-		int key;
 		Chunk c;
+		BufferedImage screencap;
 		
-		private SenderThread(int k, Chunk c)
+		private SenderThread(Chunk c, BufferedImage screen)
 		{
-			key = k;
 			this.c = c;
+			screencap = screen;
 		}
 		
 		@Override
 		public void run() {
 			try {
-				checkAndSend(key, c);
+				encodeAndSend();
 			} catch (Exception e) {
 				DP.err(e);
 				// Do nothing, this is lossy anyway
 			}
 		}
 	
-		public void checkAndSend(int key, Chunk c) throws Exception
+		public void encodeAndSend() throws Exception
 		{
+			
+			int width = Chunk.WIDTH;
+			int height = Chunk.HEIGHT;
+			int imageType = DataUtils.IMAGE_TYPE;
+
+			BufferedImage img = new BufferedImage(width, height, imageType);
+			Graphics2D g2 = img.createGraphics();
+			g2.drawImage(screencap, 0, 0, width, height, c.x, c.y, c.x+width, c.y+height, null);
+			g2.dispose();
+			
+			c.img = img;
+			int key = DataUtils.combine((short)c.x, (short)c.y);
+
 			if(!cache.containsKey(key) || !cache.get(key).equals(c))
 			{
 				cache.put(key, c);
@@ -192,7 +201,11 @@ public class VideoBroadcaster extends SwingWorker<Void, Void> {
 		toSend.get(packetBuff, DataUtils.DATA_IND, toSend.remaining());
 		
 		DatagramPacket packet = new DatagramPacket(packetBuff, packetSize, address, port);
-		socket.send(packet);
+		
+		synchronized(socket)
+		{
+			socket.send(packet);
+		}
 
 		return true;
 	}

@@ -65,7 +65,7 @@ public class RemoteAccessUI extends JPanel {
 	@Override
 	public void paintComponent(Graphics g)
 	{
-		//System.out.println("Painting " + newChunks.size() + " chunks");
+		System.out.println("Painting " + newChunks.size() + " chunks");
 		
 		while(!newChunks.isEmpty())
 		{
